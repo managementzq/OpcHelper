@@ -1,14 +1,4 @@
-﻿Channel_1.Device_1.Bool_1;1000;False;True;Unknow
-Channel_1.Device_1.Tag_1;1000;0;0;Unknow
-Channel_1.Device_1.Tag_2;1000;0;0;Unknow
-Channel_1.Device_1.Tag_3;1000;0;0;Unknow
-Channel_1.Device_1.Tag_4;1000;0;0;Unknow
-Channel_1.Device_1.Tag_5;1000;0;0;Unknow
-Channel1.Device1.Tag1;1000;0;0;Unknow
-Channel1.Device1.Tag2;1000;0;0;Unknow
-S7 [S7_connection_52]DB800,X0.2;1000;0;0;Unknow
-S7:[S7 connection_52]DB800,X0.0;1000;0;0;Unknow
-Channel_1.Device_1.Bool_0001;10;False;True;Unknow
+﻿Channel_1.Device_1.Bool_0001;10;False;True;Unknow
 Channel_1.Device_1.Bool_0002;10;False;True;Unknow
 Channel_1.Device_1.Bool_0003;10;False;True;Unknow
 Channel_1.Device_1.Bool_0004;10;False;True;Unknow

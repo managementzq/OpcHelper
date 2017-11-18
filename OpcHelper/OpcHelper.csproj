@@ -54,6 +54,7 @@
     <Compile Include="OpcClientHelper.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="OpcDataItem.cs" />
+    <Compile Include="TaskAsyncHelper.cs" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="Opc Components\OPC Core Components Readme.htm" />

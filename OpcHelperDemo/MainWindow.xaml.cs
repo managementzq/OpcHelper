@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -26,10 +27,21 @@ namespace OpcHelperDemo
         {
             InitializeComponent();
 
-            intiOpcClientHelper();
+            System.Threading.Tasks.Task.Run(new Action(intiOpcClientHelper));
+
             InitOpcDataitems();
+            upMessageDelgate = new UpMessageDelgate(upMessage);
+            upOpcDataItemsDelgate = new UpOpcDataItemsDelgate(upOpcDataItems);
+            sw = new StreamWriter(fs, Encoding.Default);
 
         }
+        FileStream fs = new FileStream("log.log", FileMode.OpenOrCreate, FileAccess.Write, FileShare.Write);
+        StreamWriter sw;
+        private delegate void UpMessageDelgate(string a);
+        private UpMessageDelgate upMessageDelgate;
+
+        private delegate void UpOpcDataItemsDelgate(IList <OpcDataItem> opcDataItems);
+        private UpOpcDataItemsDelgate upOpcDataItemsDelgate;
 
         private const string dateString = "yyyy-MM-dd HH:mm:ss ffff ";
 
@@ -66,7 +78,7 @@ namespace OpcHelperDemo
             sb = null;
         }
 
-        private OpcHelper.OpcClientHelper opcClienthelper = new OpcHelper.OpcClientHelper();
+        private OpcHelper.OpcClientHelper opcClienthelper;
 
         private const int updateRateGroup1 = 1000;
         private const int updateRateGroup2 = 1000;
@@ -74,6 +86,7 @@ namespace OpcHelperDemo
 
         private void intiOpcClientHelper()
         {
+            opcClienthelper = new OpcClientHelper();
             opcClienthelper.OnLogHappened += OpcClienthelper_OnLogHappened;
             opcClienthelper.OnErrorHappened += OpcClienthelper_OnErrorHappened;
             opcClienthelper.OnDataChanged += OpcClienthelper_OnDataChanged;
@@ -87,17 +100,60 @@ namespace OpcHelperDemo
             string message = DateTime.Now.ToString(dateString) + e.Log + System.Environment.NewLine;
             try
             {
-                UpMessage(message);
+                asyncUpMessage(message);
             }
             catch (AggregateException ex)
             {
-                UpMessage(DateTime.Now.ToString(dateString) + ex.Message + System.Environment.NewLine);
+                asyncUpMessage(DateTime.Now.ToString(dateString) + ex.Message + System.Environment.NewLine);
             }
         }
 
-
-        private void UpMessage(string message)
+        private void asyncUpMessage(string message)
         {
+            upMessageDelgate.BeginInvoke(message, new AsyncCallback((result) => {
+                upMessageDelgate.EndInvoke(result);
+
+            }), message);
+            //this.Dispatcher.BeginInvoke(upMessageDelgate, message);
+            //this.Dispatcher.Invoke(new Action(() =>
+            //{
+            //    this.txtMessage.Text = txtMessage.Text.Insert(0, message);
+            //    int index = this.txtMessage.Text.LastIndexOf('\n');
+            //    if (this.txtMessage.Text.LastIndexOf('\n') > 20000)
+            //    {
+            //        this.txtMessage.Text = this.txtMessage.Text.Remove(index);
+            //    }
+            //}));
+        }
+        /// <summary>
+        /// 写文件
+        /// </summary>
+        /// <param name="xContent">内容</param>
+        /// <param name="xFilePath">路径</param>
+        public  void WriteFile(string xContent)
+        {
+            lock (lockObject)
+            { 
+                FileStream fs = new FileStream("log.log", FileMode.OpenOrCreate);
+            StreamWriter sw = new StreamWriter(fs, Encoding.Default);
+            sw.Write(xContent);
+            sw.Close();
+                fs.Close();
+
+            }
+
+        }
+
+    object lockObject = new object();
+        private void upMessage(string message)
+        {
+            //lock (lockObject)
+            //{
+            //sw.WriteAsync(message);
+            //    //sw.Write(message);
+
+            //}
+
             this.Dispatcher.Invoke(new Action(() =>
             {
                 this.txtMessage.Text = txtMessage.Text.Insert(0, message);
@@ -107,16 +163,40 @@ namespace OpcHelperDemo
                     this.txtMessage.Text = this.txtMessage.Text.Remove(index);
                 }
             }));
+            //System.Console.Write(message);
+            //System.Diagnostics.Debug.Print(message);
+            //WriteFile( message);
+            //System.IO.File.AppendAllText("log.log", message);
+
+            //this.txtMessage.Text = txtMessage.Text.Insert(0, message);
+            //int index = this.txtMessage.Text.LastIndexOf('\n');
+            //if (this.txtMessage.Text.LastIndexOf('\n') > 20000)
+            //{
+            //    this.txtMessage.Text = this.txtMessage.Text.Remove(index);
+            //}
         }
 
-
-        private void UpOpcDataItemsMessage(IEnumerable <OpcDataItem > opcDataItem)
+        private void asyncUpOpcDataItems(IEnumerable<OpcDataItem> opcDataItem)
         {
+
+            this.Dispatcher.BeginInvoke (upOpcDataItemsDelgate, opcDataItem);
+        }
+
+        private void upOpcDataItems(IEnumerable <OpcDataItem > opcDataItem)
+        {
+            //this.txtb.Text = "(" + opcDataItem.Count(a => a.Quality == OpcResult.S_OK) + "/" + opcDataItem.Count() + ")";
+
+            //System.IO.File.AppendAllText("log.log", message);
+
+            //gvOpcDataItems.ItemsSource = null;
+            //gvOpcDataItems.ItemsSource = opcDataItem;
+            //this.txtb.Text = "(" + opcDataItem.Count(a => a.Quality == OpcResult.S_OK) + "/" + opcDataItem.Count() + ")";
+            //this.Dispatcher.BeginInvoke );
             this.Dispatcher.Invoke(new Action(() =>
             {
                 gvOpcDataItems.ItemsSource = null;
                 gvOpcDataItems.ItemsSource = opcDataItem;
-                this.txtb.Text = "(" + opcDataItem.Count (a=>a.Quality == OpcResult.S_OK) + "/"+opcDataItem.Count()+")";
+                this.txtb.Text = "(" + opcDataItem.Count(a => a.Quality == OpcResult.S_OK) + "/" + opcDataItem.Count() + ")";
             }));
         }
 
@@ -125,11 +205,11 @@ namespace OpcHelperDemo
             string message = DateTime.Now.ToString(dateString) + e.Message + (e.Exception == null ? "" : e.Exception.StackTrace) + System.Environment.NewLine;
             try
             {
-                UpMessage(message);
+                asyncUpMessage(message);
             }
             catch (AggregateException ex)
             {
-                UpMessage(DateTime.Now.ToString(dateString) + ex.Message + System.Environment.NewLine);
+                asyncUpMessage(DateTime.Now.ToString(dateString) + ex.Message + System.Environment.NewLine);
             }
         }
 
@@ -138,13 +218,13 @@ namespace OpcHelperDemo
             string message = DateTime.Now.ToString(dateString) + e.OpcResult + " " + (e.OpcDataItem == null ? " " : e.OpcDataItem.ToString()) + System.Environment.NewLine;
             try
             {
-                UpMessage(message);
+                asyncUpMessage(message);
 
-                UpOpcDataItemsMessage(this.opcClienthelper.OpcDataItems);
+             asyncUpOpcDataItems(this.opcClienthelper.OpcDataItems);
             }
             catch (AggregateException ex)
             {
-                UpMessage(DateTime.Now.ToString(dateString) + ex.Message + System.Environment.NewLine);
+                asyncUpMessage(DateTime.Now.ToString(dateString) + ex.Message + System.Environment.NewLine);
             }
         }
 
@@ -159,8 +239,6 @@ namespace OpcHelperDemo
         {
             try
             {
-
-                
                 var servers1 = OpcHelper.OpcClientHelper.GetOpcServers();
                 //var servers2 = OpcHelper.OpcClientHelper.GetOpcServers("127.0.0.1");
                 if (!Equals(null, servers1) && servers1.Count() > 0)
@@ -168,7 +246,7 @@ namespace OpcHelperDemo
                     foreach (var v in servers1)
                     {
                         string message = DateTime.Now.ToString(dateString) + "可用的OPC服务器：" + v + System.Environment.NewLine;
-                        UpMessage(message);
+                        asyncUpMessage(message);
                     }
 
                     cboxOpcServers.ItemsSource = null;
@@ -181,13 +259,13 @@ namespace OpcHelperDemo
                 }
                 else
                 {
-                    UpMessage(DateTime.Now.ToString(dateString) + "未找到可用的OPC服务器。" + System.Environment.NewLine);
+                    asyncUpMessage(DateTime.Now.ToString(dateString) + "未找到可用的OPC服务器。" + System.Environment.NewLine);
                 }
 
             }
             catch (Exception ex)
             {
-                UpMessage(DateTime.Now.ToString(dateString) + ex.Message + System.Environment.NewLine);
+                asyncUpMessage(DateTime.Now.ToString(dateString) + ex.Message + System.Environment.NewLine);
             }
         }
 
@@ -304,6 +382,8 @@ namespace OpcHelperDemo
                 {
                     //e.Cancel = true;
                     opcClienthelper.Dispose();
+                    sw.Close();
+
                 }
                 else
                 {
@@ -343,7 +423,7 @@ namespace OpcHelperDemo
             if (!opcClienthelper.IsConnected)
             {
                 message = DateTime.Now.ToString(dateString) + "请先连接服务器" + System.Environment.NewLine;
-                UpMessage(message);
+                asyncUpMessage(message);
                 return;
             }
             OpcDataItem opcDataItem = null;
@@ -363,7 +443,7 @@ namespace OpcHelperDemo
                 message = DateTime.Now.ToString(dateString) + "写入完成 " + opcResult + " " + (opcDataItem == null ? " " : opcDataItem.ToString()) + System.Environment.NewLine;
 
             }
-            UpMessage(message);
+            asyncUpMessage(message);
         }
 
         /// <summary>
@@ -377,7 +457,7 @@ namespace OpcHelperDemo
             if (!opcClienthelper.IsConnected)
             {
                 message = DateTime.Now.ToString(dateString) + "请先连接服务器" + System.Environment.NewLine;
-                UpMessage(message);
+                asyncUpMessage(message);
                 return;
             }
             OpcDataItem opcDataItem;
@@ -393,7 +473,7 @@ namespace OpcHelperDemo
                 opcDataItem = opcClienthelper.Read(opcDataItem);
                 message = DateTime.Now.ToString("HH:mm:ss ffff ") + "读完成 " + (opcDataItem == null ? " " : opcDataItem.ToString()) + System.Environment.NewLine;
             }
-            UpMessage(message);
+            asyncUpMessage(message);
             if (!Equals(null, opcClienthelper.OpcDataItems) && opcClienthelper.OpcDataItems.Count > 0)
             {
                 //无效读取
@@ -401,7 +481,7 @@ namespace OpcHelperDemo
                 opcDataItem2.Name = opcDataItem2.Name + "xxx";
                 opcDataItem2 = opcClienthelper.Read(opcDataItem2);
                 message = DateTime.Now.ToString(dateString) + "读完成 " + (opcDataItem2 == null ? " " : opcDataItem2.ToString()) + System.Environment.NewLine;
-                UpMessage(message);
+                asyncUpMessage(message);
             }
         }
 
@@ -416,7 +496,7 @@ namespace OpcHelperDemo
             if (!opcClienthelper.IsConnected)
             {
                 message = DateTime.Now.ToString(dateString) + "请先连接服务器" + System.Environment.NewLine;
-                UpMessage(message);
+                asyncUpMessage(message);
                 return;
             }
             if (Equals(null, opcClienthelper.OpcDataItems) || opcClienthelper.OpcDataItems.Count < 1)
@@ -428,7 +508,7 @@ namespace OpcHelperDemo
                 var opcDataItem = opcClienthelper.OpcDataItems.FirstOrDefault().Clone() as OpcDataItem;
                 message = DateTime.Now.ToString(dateString) + "读完成 " + (opcDataItem == null ? " " : opcDataItem.ToString()) + System.Environment.NewLine;
             }
-            UpMessage(message);
+            asyncUpMessage(message);
         }
 
         private void btnUpdateDataItems_Click(object sender, RoutedEventArgs e)
@@ -437,7 +517,7 @@ namespace OpcHelperDemo
             if (!opcClienthelper.IsConnected)
             {
                 message = DateTime.Now.ToString(dateString) + "请先连接服务器" + System.Environment.NewLine;
-                UpMessage(message);
+                asyncUpMessage(message);
                 return;
             }
             var strList = txtOpcDataItems.Text.Split('\r', '\n');

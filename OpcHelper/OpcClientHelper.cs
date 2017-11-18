@@ -273,10 +273,10 @@ namespace OpcHelper
         /// 注册Opc数据项集合
         /// </summary>
         /// <param name="opcDataItems"></param>
-        public void RegisterOpcDataItems(IList<OpcDataItem> opcDataItems)
+        private  void registerOpcDataItems(IList<OpcDataItem> opcDataItems)
         {
             this.OpcDataItems = opcDataItems;
-            //daemonTimer.Stop();
+            daemonTimer.Stop();
 
             //如果未连接那么返回
             if (!this.IsConnected)
@@ -366,8 +366,15 @@ namespace OpcHelper
                             }
                             return;
                         }
+                        //订阅成功更新状态
+                        if (v.ResultID == Opc.ResultID .S_OK )
+                        {
+                            OpcResult opcResult = OpcResult.Unknow;
+                            Enum.TryParse<OpcResult>(v.ResultID.ToString(), out opcResult);
+                            OpcDataItems.FirstOrDefault(a => a.Name == v.ItemName).Quality = opcResult;
+                        }
                         //未订阅成功，异常事件通知
-                        if (v.ResultID == Opc.ResultID.S_OK && !Equals(null, OnDataChanged))
+                        else if (v.ResultID == Opc.ResultID.S_OK && !Equals(null, OnDataChanged))
                         {
                             OnDataChanged(this, new OpcDataEventArgs(OpcResult.DataItemRegistered,
                                 dataItemGroup.DataItems.FirstOrDefault(a => a.Name == v.ItemName)));
@@ -418,8 +425,15 @@ namespace OpcHelper
                             }
                             return;
                         }
+                        //订阅成功更新状态
+                        if (v.ResultID == Opc.ResultID.S_OK)
+                        {
+                            OpcResult opcResult = OpcResult.Unknow;
+                            Enum.TryParse<OpcResult>(v.ResultID.ToString(), out opcResult);
+                            OpcDataItems.FirstOrDefault(a => a.Name == v.ItemName).Quality = opcResult;
+                        }
                         //未订阅成功，异常事件通知
-                        if (v.ResultID == Opc.ResultID.S_OK && !Equals(null, OnDataChanged))
+                        else if (v.ResultID == Opc.ResultID.S_OK && !Equals(null, OnDataChanged))
                         {
                             OnDataChanged(this, new OpcDataEventArgs(OpcResult.DataItemRegistered,
                                 dataItemGroup.DataItems.FirstOrDefault(a => a.Name == v.ItemName)));
@@ -487,9 +501,46 @@ namespace OpcHelper
                 }
 
             }//end foreach (var dataItemGroup in dataItemGroups)
+            //删除订阅项后没有item了，那么删除subscription
+            foreach (var subscription in this.opcServer.Subscriptions.Cast<Opc.Da.Subscription>())
+            {
+              var isHave =  dataItemGroups.Any(a => a.UpdateRate == subscription.State.UpdateRate);
 
+                if (!isHave)
+                {
+                    subscription.DataChanged -= ThisSubscription_DataChanged;
+                    string name = subscription.Name;
+                    //his.opcServer.Subscriptions.Remove(thisSubscription);
+                    this.opcServer.CancelSubscription(subscription);
+                    subscription.Dispose();//
+                    if (!Equals(null, OnLogHappened))
+                    {
+                        OnLogHappened(this, new OpcLogEventArgs("Subscription " + name + " 已经从订阅组中移除"));
+                    }
+                    name = null;
+                }
+            }
+            if (!Equals(null, OnLogHappened))
+            {
+                OnLogHappened(this, new OpcLogEventArgs("OPC Subscriptions Count:" + this.opcServer.Subscriptions.Count + "."));
+            }
             daemonTimer.Start();
         }
+
+        //public OpcResult  aa(object  opcDataItems)
+        //{
+        //    return OpcResult.DataItemAdded;
+        //}
+
+        public async void RegisterOpcDataItems(IList<OpcDataItem> opcDataItems)
+        {
+            await Task.Run(() =>
+            {
+                registerOpcDataItems(opcDataItems);
+            });
+        }
+
+
 
         /// <summary>
         /// 重新注册数据点
@@ -505,7 +556,12 @@ namespace OpcHelper
                 {
                     OnLogHappened(this, new OpcHelper.OpcLogEventArgs("开始重新注册数据点"));
                 }
-                RegisterOpcDataItems(OpcDataItems);
+                registerOpcDataItems(OpcDataItems);
+
+                foreach (var opcDataItem in OpcDataItems.Where(a => a.Quality != OpcResult.S_OK))
+                {
+                    Read(opcDataItem);
+                }
             }
         }
         /// <summary>
@@ -678,7 +734,7 @@ namespace OpcHelper
                 foreach (var v in results)
                 {
                     Enum.TryParse<OpcResult>(v.ResultID.ToString(), out opcResult);
-                    opcDataItemResult = this.OpcDataItems.FirstOrDefault(a => a.Name == opcDataItem.Name).Clone() as OpcDataItem;
+                    opcDataItemResult = this.OpcDataItems.FirstOrDefault(a => a.Name == opcDataItem.Name);
                     opcDataItemResult.Quality = opcResult;
                     opcDataItemResult.OldValue = opcDataItemResult.NewValue;
                     opcDataItemResult.NewValue = v.Value;
@@ -688,7 +744,7 @@ namespace OpcHelper
                         OnErrorHappened(this, new OpcErrorEventArgs(opcResult, "读取数据项时发生错误:" + v.ResultID.Name, null));
                     }
                 }//end foreach
-                return opcDataItemResult;
+                return opcDataItemResult.Clone () as OpcDataItem;
             }
             catch (Exception ex)
             {
