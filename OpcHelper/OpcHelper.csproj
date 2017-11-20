@@ -57,8 +57,12 @@
     <Compile Include="TaskAsyncHelper.cs" />
   </ItemGroup>
   <ItemGroup>
-    <Content Include="Opc Components\OPC Core Components Readme.htm" />
-    <Content Include="Opc Components\setup.exe" />
+    <Content Include="Opc Components\OPC Core Components Readme.htm">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Opc Components\setup.exe">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
     <Content Include="OpcNetApi.Com.dll">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
@@ -67,7 +71,9 @@
     </Content>
   </ItemGroup>
   <ItemGroup>
-    <None Include="Opc Components\OPC Core Components Redistributable %28x86%29.msi" />
+    <Content Include="Opc Components\OPC Core Components Redistributable %28x86%29.msi">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
