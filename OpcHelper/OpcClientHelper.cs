@@ -61,9 +61,9 @@ namespace OpcHelper
         /// </summary>
         public string Host { get; private set; }
 
-        private int daemonInterval = 5 * 1000;
+        private int daemonInterval = 60 * 1000;
         /// <summary>
-        /// 守护时间，默认5秒。
+        /// 守护时间，默认60秒。
         /// </summary>
         public int DaemonInterval
         {
@@ -92,12 +92,13 @@ namespace OpcHelper
         /// <param name="e"></param>
         private void DaemonTimer_Elapsed(object sender, System.Timers.ElapsedEventArgs e)
         {
+            //如果已经连接那么注册数据点
             if (IsConnected)
             {
                 reRegisterOpcDataItems();
             }
             else
-            {
+            {//如果未连接，那么线连接在注册数据点
                 reCconnect();
                 reRegisterOpcDataItems();
             }
@@ -117,8 +118,7 @@ namespace OpcHelper
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.Print(ex.Message);
-                return null;
+                return new List<string>() { ex.Message };
             }
         }
 
@@ -156,8 +156,7 @@ namespace OpcHelper
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.Print(ex.Message);
-                return null;
+                return new List<string>() { ex.Message };
             }
         }
 
@@ -191,7 +190,6 @@ namespace OpcHelper
             OpcResult opcResult = OpcResult.ServerNoConnect;
             try
             {
-                //daemonTimer.Stop();
                 this.OpcServerName = serverName;
                 this.Host = host;
                 if (string.IsNullOrWhiteSpace(serverName) || string.IsNullOrWhiteSpace(host))
@@ -224,6 +222,7 @@ namespace OpcHelper
                     {
                         OnLogHappened(this, new OpcLogEventArgs("连接Opc服务器成功,host=" + host + ",serverName=" + serverName));
                     }
+                    //连接成功后开启守护进程
                     daemonTimer.Enabled = true;
                     daemonTimer.Start();
                     opcResult = OpcResult.S_OK;
@@ -259,7 +258,6 @@ namespace OpcHelper
         /// </summary>
         private void disConnect()
         {
-            //OpcResult opcResult = OpcResult.E_FAIL;
             try
             {
                 if (!IsConnected)
@@ -268,21 +266,7 @@ namespace OpcHelper
                     {
                         OnLogHappened(this, new OpcLogEventArgs("Opc服务器已断开"));
                     }
-                    //opcResult = OpcResult.ServerNoConnect;
-                    //return opcResult;
                 }
-                //var subscriptionCount = opcServer.Subscriptions.Count;
-                //for (int i = subscriptionCount - 1; i >= 0; i--)
-                //{
-                //    //var subscription = (opcServer.Subscriptions[i] as Opc.Da.Subscription);
-                //    opcServer.Subscriptions[i].RemoveItems(opcServer.Subscriptions[i].Items);
-                //    //subscription.DataChanged -= ThisSubscription_DataChanged;
-                //    this.opcServer.CancelSubscription(opcServer.Subscriptions[i]);
-                //    opcServer.Subscriptions[i].Dispose();
-                //}
-                //opcServer.Subscriptions.Clear();
-                //this.opcServer.Disconnect();
-                //opcServer = null;
                 if (!Equals(this.opcServer.Subscriptions, null) && this.opcServer.Subscriptions.Count > 0)
                 {
                     foreach (Opc.Da.Subscription thisSubscription in this.opcServer.Subscriptions)
@@ -296,30 +280,24 @@ namespace OpcHelper
                     opcServer.Disconnect();
                     IsConnected = false;
                 }
-
-
                 if (!Equals(null, OnLogHappened))
                 {
                     OnLogHappened(this, new OpcLogEventArgs("断开Opc服务器成功"));
                 }
-                //opcResult = OpcResult.S_OK;
-                //return opcResult;
             }
             catch (Exception ex)
             {
+                IsConnected = false;
                 if (!Equals(null, OnErrorHappened))
                 {
                     OnErrorHappened(this, new OpcErrorEventArgs(OpcResult.E_FAIL, "断开Opc服务器时出错，" + ex.Message, ex));
                 }
-                //opcResult = OpcResult.E_FAIL;
-                //return opcResult;
-            }
-            finally
-            {
-                IsConnected = false;
             }
         }
 
+        /// <summary>
+        /// 异步断开连接
+        /// </summary>
         public async void DisConnectAsync()
         {
             daemonTimer.Enabled = false;
@@ -735,6 +713,7 @@ namespace OpcHelper
                 {
                     throw new ArgumentNullException("opcDataItem参数不能为空。");
                 }
+
                 Opc.Da.Subscription tmpSubscription =
                     this.opcServer.Subscriptions.Cast<Opc.Da.Subscription>().FirstOrDefault(a => a.State.UpdateRate == opcDataItem.UpdateRate);
                 var itemValue =
@@ -782,7 +761,6 @@ namespace OpcHelper
         public OpcDataItem Read(OpcDataItem opcDataItem)
         {
             OpcDataItem opcDataItemResult = null;
-
             //如果未连接那么返回
             if (!this.IsConnected)
             {
@@ -862,7 +840,16 @@ namespace OpcHelper
             this.opcServer = null;
             this.OpcServerName = null;
             this.Host = null;
+            GC.SuppressFinalize(this);
+
         }
 
+        /// <summary>
+        /// 释放当前对象时释放资源
+        /// </summary>
+        ~OpcClientHelper()
+        {
+            Dispose();
+        }
     }
 }
