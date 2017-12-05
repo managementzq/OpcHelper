@@ -130,7 +130,7 @@ namespace OpcHelper
                 //Func<string, IEnumerable<string>> funcget = new Func<string, IEnumerable<string>>(GetOpcServers);
                 //return funcget(host);
                 ////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+                //写法二
                 IEnumerable<string> aa = null;
                 Func<string, IEnumerable<string>> funcget = new Func<string, IEnumerable<string>>(GetOpcServers);
                 funcget.BeginInvoke(host, new AsyncCallback((res) =>
@@ -140,7 +140,7 @@ namespace OpcHelper
                 return aa;
                 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-                //方法二
+                //方法三
                 //var result = Task<IEnumerable<string>>.Run<IEnumerable<string>>
                 //    (
                 //    new Func<IEnumerable<string>>
