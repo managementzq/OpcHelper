@@ -32,6 +32,7 @@ namespace OpcHelperDemo
             InitOpcDataitems();
             upMessageDelgate = new UpMessageDelgate(upMessage);
             upOpcDataItemsDelgate = new UpOpcDataItemsDelgate(upOpcDataItems);
+            upOpcDataItemDelgate = new UpOpcDataItemDelgate(upOpcDataItem);
             sw = new StreamWriter(fs, Encoding.Default);
 
         }
@@ -42,6 +43,9 @@ namespace OpcHelperDemo
 
         private delegate void UpOpcDataItemsDelgate(IList <OpcDataItem> opcDataItems);
         private UpOpcDataItemsDelgate upOpcDataItemsDelgate;
+
+        private delegate void UpOpcDataItemDelgate(OpcDataItem opcDataItem);
+        private UpOpcDataItemDelgate upOpcDataItemDelgate;
 
         private const string dateString = "yyyy-MM-dd HH:mm:ss ffff ";
 
@@ -104,7 +108,7 @@ namespace OpcHelperDemo
             }
             catch (AggregateException ex)
             {
-                asyncUpMessage(DateTime.Now.ToString(dateString) + ex.Message + System.Environment.NewLine);
+                //asyncUpMessage(DateTime.Now.ToString(dateString) + ex.Message + System.Environment.NewLine);
             }
         }
 
@@ -182,7 +186,27 @@ namespace OpcHelperDemo
             this.Dispatcher.BeginInvoke (upOpcDataItemsDelgate, opcDataItem);
         }
 
+        ObservableCollection<OpcDataItem> dataGridDataSource = new ObservableCollection<OpcDataItem>();
         private void upOpcDataItems(IEnumerable <OpcDataItem > opcDataItem)
+        {
+            //this.txtb.Text = "(" + opcDataItem.Count(a => a.Quality == OpcResult.S_OK) + "/" + opcDataItem.Count() + ")";
+           
+            //System.IO.File.AppendAllText("log.log", message);
+
+            //gvOpcDataItems.ItemsSource = null;
+            //gvOpcDataItems.ItemsSource = opcDataItem;
+            //this.txtb.Text = "(" + opcDataItem.Count(a => a.Quality == OpcResult.S_OK) + "/" + opcDataItem.Count() + ")";
+            //this.Dispatcher.BeginInvoke );
+            this.Dispatcher.Invoke(new Action(() =>
+            {
+                //dataGridDataSource
+                gvOpcDataItems.ItemsSource = null;
+                gvOpcDataItems.ItemsSource = dataGridDataSource;
+                this.txtb.Text = "(" + opcDataItem.Count(a => a.Quality == OpcResult.S_OK) + "/" + opcDataItem.Count() + ")";
+            }));
+        }
+        OpcDataItem tm = new OpcDataItem("test",1000,"0","0",OpcResult.Unknow );
+        private void upOpcDataItem(OpcDataItem opcDataItem)
         {
             //this.txtb.Text = "(" + opcDataItem.Count(a => a.Quality == OpcResult.S_OK) + "/" + opcDataItem.Count() + ")";
 
@@ -194,9 +218,17 @@ namespace OpcHelperDemo
             //this.Dispatcher.BeginInvoke );
             this.Dispatcher.Invoke(new Action(() =>
             {
-                gvOpcDataItems.ItemsSource = null;
-                gvOpcDataItems.ItemsSource = opcDataItem;
-                this.txtb.Text = "(" + opcDataItem.Count(a => a.Quality == OpcResult.S_OK) + "/" + opcDataItem.Count() + ")";
+                //dataGridDataSource
+                //var v =  dataGridDataSource.First(a => a.Name == opcDataItem.Name) ;
+                //  v = opcDataItem;
+
+                dataGridDataSource.Add(opcDataItem);
+
+                dataGridDataSource.Remove(opcDataItem);
+
+                //gvOpcDataItems.ItemsSource = null;
+                //gvOpcDataItems.ItemsSource = dataGridDataSource;
+                this.txtb.Text = "(" + dataGridDataSource.Count(a => a.Quality == OpcResult.S_OK) + "/" + dataGridDataSource.Count() + ")";
             }));
         }
 
@@ -209,7 +241,7 @@ namespace OpcHelperDemo
             }
             catch (AggregateException ex)
             {
-                asyncUpMessage(DateTime.Now.ToString(dateString) + ex.Message + System.Environment.NewLine);
+                //asyncUpMessage(DateTime.Now.ToString(dateString) + ex.Message + System.Environment.NewLine);
             }
         }
 
@@ -220,11 +252,13 @@ namespace OpcHelperDemo
             {
                 asyncUpMessage(message);
 
-             asyncUpOpcDataItems(this.opcClienthelper.OpcDataItems);
+                //asyncUpOpcDataItems(this.opcClienthelper.OpcDataItems);
+
+                upOpcDataItemDelgate(e.OpcDataItem);
             }
             catch (AggregateException ex)
             {
-                asyncUpMessage(DateTime.Now.ToString(dateString) + ex.Message + System.Environment.NewLine);
+                //asyncUpMessage(DateTime.Now.ToString(dateString) + ex.Message + System.Environment.NewLine);
             }
         }
 
@@ -265,7 +299,7 @@ namespace OpcHelperDemo
             }
             catch (Exception ex)
             {
-                asyncUpMessage(DateTime.Now.ToString(dateString) + ex.Message + System.Environment.NewLine);
+                //asyncUpMessage(DateTime.Now.ToString(dateString) + ex.Message + System.Environment.NewLine);
             }
         }
 
@@ -296,7 +330,8 @@ namespace OpcHelperDemo
             //opcClienthelper.OnDataChanged -= OpcClienthelper_OnDataChanged;
             //opcClienthelper.OnErrorHappened -= OpcClienthelper_OnErrorHappened;
             //opcClienthelper.OnLogHappened -= OpcClienthelper_OnLogHappened;
-            opcClienthelper.DisConnect();
+            //opcClienthelper.DisConnect();
+            opcClienthelper.DisConnectAsync();
             //opcClienthelper.OnLogHappened += OpcClienthelper_OnLogHappened;
             //opcClienthelper.OnErrorHappened += OpcClienthelper_OnErrorHappened;
             //opcClienthelper.OnDataChanged += OpcClienthelper_OnDataChanged;
@@ -310,7 +345,7 @@ namespace OpcHelperDemo
         private void btnAddDataItems_Click(object sender, RoutedEventArgs e)
         {
 
-            opcClienthelper.RegisterOpcDataItems(new List<OpcHelper.OpcDataItem> {
+            opcClienthelper.RegisterOpcDataItemsAsync(new List<OpcHelper.OpcDataItem> {
                 new OpcHelper.OpcDataItem ("Channel_1.Device_1.Tag_1",updateRateGroup3,"","", OpcHelper.OpcResult.Unknow),
                 new OpcHelper.OpcDataItem ("Channel_1.Device_1.Bool_1",updateRateGroup1,"","",OpcHelper.OpcResult.Unknow),
             });
@@ -333,7 +368,7 @@ namespace OpcHelperDemo
         /// <param name="e"></param>;
         private void btnReAddDataItems_Click(object sender, RoutedEventArgs e)
         {
-            opcClienthelper.RegisterOpcDataItems(new List<OpcHelper.OpcDataItem> {
+            opcClienthelper.RegisterOpcDataItemsAsync(new List<OpcHelper.OpcDataItem> {
                 new OpcHelper.OpcDataItem ("Channel_1.Device_1.Tag_1",updateRateGroup1,"","", OpcHelper.OpcResult.Unknow),
                 new OpcHelper.OpcDataItem ("Channel_1.Device_1.Tag_2",updateRateGroup2,"","", OpcHelper.OpcResult.Unknow),
                 new OpcHelper.OpcDataItem ("Channel_1.Device_1.Bool_1",updateRateGroup2,"","",OpcHelper.OpcResult.Unknow),
@@ -347,7 +382,7 @@ namespace OpcHelperDemo
         /// <param name="e"></param>;
         private void btnDeleteDataItems_Click(object sender, RoutedEventArgs e)
         {
-            opcClienthelper.RegisterOpcDataItems(new List<OpcHelper.OpcDataItem> {
+            opcClienthelper.RegisterOpcDataItemsAsync(new List<OpcHelper.OpcDataItem> {
                 new OpcHelper.OpcDataItem ("Channel_1.Device_1.Tag_2",updateRateGroup1,"","", OpcHelper.OpcResult.Unknow),
                 new OpcHelper.OpcDataItem ("Channel_1.Device_1.Bool_1",updateRateGroup1,"","",OpcHelper.OpcResult.Unknow),
             });
@@ -360,7 +395,7 @@ namespace OpcHelperDemo
         /// <param name="e"></param>;
         private void btnbtnNoDataItems_Click(object sender, RoutedEventArgs e)
         {
-            opcClienthelper.RegisterOpcDataItems(new List<OpcHelper.OpcDataItem>
+            opcClienthelper.RegisterOpcDataItemsAsync(new List<OpcHelper.OpcDataItem>
             {
                 //new OpcHelper.OpcDataItem ("Channel_1.Device_1.Tag_2",100,"","", OpcHelper.OpcResult.Unknow),
                 //new OpcHelper.OpcDataItem ("Channel_1.Device_1.Bool_1",200,"","",OpcHelper.OpcResult.Unknow),
@@ -405,7 +440,7 @@ namespace OpcHelperDemo
         /// <param name="e"></param>;
         private void btnAddInvalidDataItems_Click(object sender, RoutedEventArgs e)
         {
-            opcClienthelper.RegisterOpcDataItems(new List<OpcHelper.OpcDataItem> {
+            opcClienthelper.RegisterOpcDataItemsAsync(new List<OpcHelper.OpcDataItem> {
                 new OpcHelper.OpcDataItem ("Channel_1.Device_1.Tag_20",updateRateGroup1,"","", OpcHelper.OpcResult.Unknow),
                 new OpcHelper.OpcDataItem ("Channel_1.Device_1.Bool_1",updateRateGroup1,"","",OpcHelper.OpcResult.Unknow),
 
@@ -535,7 +570,11 @@ namespace OpcHelperDemo
                     new OpcDataItem(strOpcDataItemTmp[0], int.Parse(strOpcDataItemTmp[1]), strOpcDataItemTmp[2], strOpcDataItemTmp[3], (OpcResult)Enum.Parse(typeof(OpcResult), strOpcDataItemTmp[4]));
                 opcDataItems.Add(opcDataItem);
             }
-            opcClienthelper.RegisterOpcDataItems(opcDataItems);
+            opcClienthelper.RegisterOpcDataItemsAsync(opcDataItems);
+            dataGridDataSource = new ObservableCollection<OpcDataItem>(opcDataItems);
+            gvOpcDataItems.ItemsSource = dataGridDataSource;
+            this.txtb.Text = "(" + dataGridDataSource.Count(a => a.Quality == OpcResult.S_OK) + "/" + dataGridDataSource.Count() + ")";
+
         }
     }
 }

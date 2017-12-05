@@ -22,7 +22,7 @@ namespace OpcHelper
         }
 
         /// <summary>
-        /// 已连接的服务器
+        /// OPC服务器实例
         /// </summary>
         private Opc.Da.Server opcServer = null;
 
@@ -32,7 +32,7 @@ namespace OpcHelper
         private System.Timers.Timer daemonTimer = new System.Timers.Timer();
 
         /// <summary>
-        /// 数据改变事件，此事件只能在连接之后注册，断开连接之前取消注册
+        /// 数据改变事件
         /// </summary>
         public event EventHandler<OpcDataEventArgs> OnDataChanged;
 
@@ -47,26 +47,40 @@ namespace OpcHelper
         public event EventHandler<OpcLogEventArgs> OnLogHappened;
 
         /// <summary>
-        /// 是否已连接
+        /// 是否连接
         /// </summary>
         public bool IsConnected { get; private set; } = false;
 
         /// <summary>
         /// Opc服务器名称
         /// </summary>
-        private string serverName;
+        public string OpcServerName { get; private set; }
 
         /// <summary>
-        /// 主机名
+        /// Opc服务器主机名
         /// </summary>
-        private string host;
+        public string Host { get; private set; }
+
+        private int daemonInterval = 5 * 1000;
+        /// <summary>
+        /// 守护时间，默认5秒。
+        /// </summary>
+        public int DaemonInterval
+        {
+            get { return daemonInterval; }
+            set
+            {
+                daemonInterval = value;
+                daemonTimer.Interval = value;
+            }
+        }
 
         /// <summary>
         /// 初始化守护timer
         /// </summary>
         private void initdaemonTimer()
         {
-            daemonTimer.Interval = 5 * 1000;
+            daemonTimer.Interval = DaemonInterval;
             daemonTimer.Elapsed += DaemonTimer_Elapsed;
             daemonTimer.AutoReset = true;
         }
@@ -108,6 +122,45 @@ namespace OpcHelper
             }
         }
 
+        public static IEnumerable<string> GetOpcServersAsync(string host = "127.0.0.1")
+        {
+            try
+            {
+                //写法一
+                //Func<string, IEnumerable<string>> funcget = new Func<string, IEnumerable<string>>(GetOpcServers);
+                //return funcget(host);
+                ////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+                IEnumerable<string> aa = null;
+                Func<string, IEnumerable<string>> funcget = new Func<string, IEnumerable<string>>(GetOpcServers);
+                funcget.BeginInvoke(host, new AsyncCallback((res) =>
+                {
+                    aa = funcget.EndInvoke(res);
+                }), null);
+                return aa;
+                ////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+                //方法二
+                //var result = Task<IEnumerable<string>>.Run<IEnumerable<string>>
+                //    (
+                //    new Func<IEnumerable<string>>
+                //    (
+                //    () =>
+                //    {
+                //        var servers = getOpcServers(host);
+                //        return servers == null ? null : servers.Select(a => a.Name);
+                //    }
+                //    ));
+                //return result.Result;
+
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.Print(ex.Message);
+                return null;
+            }
+        }
+
         /// <summary>
         /// 取得可用的Opc服务器
         /// </summary>
@@ -135,13 +188,12 @@ namespace OpcHelper
         /// <param name="host"></param>
         public OpcResult Connect(string serverName, string host = "127.0.0.1")
         {
-            OpcResult opcResult = OpcResult.Unknow;
+            OpcResult opcResult = OpcResult.ServerNoConnect;
             try
             {
                 //daemonTimer.Stop();
-
-                this.serverName = serverName;
-                this.host = host;
+                this.OpcServerName = serverName;
+                this.Host = host;
                 if (string.IsNullOrWhiteSpace(serverName) || string.IsNullOrWhiteSpace(host))
                 {
                     if (!Equals(null, OnLogHappened))
@@ -172,15 +224,15 @@ namespace OpcHelper
                     {
                         OnLogHappened(this, new OpcLogEventArgs("连接Opc服务器成功,host=" + host + ",serverName=" + serverName));
                     }
+                    daemonTimer.Enabled = true;
+                    daemonTimer.Start();
+                    opcResult = OpcResult.S_OK;
                 }
-                daemonTimer.Start();
-                opcResult = OpcResult.S_OK;
                 return opcResult;
             }
             catch (Exception ex)
             {
                 IsConnected = false;
-                //System.Diagnostics.Debug.Print(ex.Message);
                 if (!Equals(null, OnErrorHappened))
                 {
                     OnErrorHappened(this, new OpcErrorEventArgs(OpcResult.E_FAIL, "连接Opc服务器时出错：" + ex.Message, ex));
@@ -199,28 +251,15 @@ namespace OpcHelper
             {
                 OnLogHappened(this, new OpcHelper.OpcLogEventArgs("开始重新连接Opc服务器"));
             }
-            Connect(serverName, host);
-            //daemonTimer.Start();
+            Connect(OpcServerName, Host);
         }
 
         /// <summary>
         /// 关闭连接
         /// </summary>
-        public OpcResult DisConnect()
+        private void disConnect()
         {
-            //daemonTimer.Stop();
-            daemonTimer.Enabled = false;
-            return disConnect();
-
-        }
-
-        /// <summary>
-        /// 断开连接
-        /// </summary>
-        /// <returns></returns>
-        private OpcResult disConnect()
-        {
-            OpcResult opcResult = OpcResult.E_FAIL;
+            //OpcResult opcResult = OpcResult.E_FAIL;
             try
             {
                 if (!IsConnected)
@@ -229,25 +268,42 @@ namespace OpcHelper
                     {
                         OnLogHappened(this, new OpcLogEventArgs("Opc服务器已断开"));
                     }
-                    opcResult = OpcResult.ServerNoConnect;
-                    return opcResult;
+                    //opcResult = OpcResult.ServerNoConnect;
+                    //return opcResult;
                 }
-                var subscriptionCount = opcServer.Subscriptions.Count;
-                for (int i = subscriptionCount - 1; i >= 0; i--)
+                //var subscriptionCount = opcServer.Subscriptions.Count;
+                //for (int i = subscriptionCount - 1; i >= 0; i--)
+                //{
+                //    //var subscription = (opcServer.Subscriptions[i] as Opc.Da.Subscription);
+                //    opcServer.Subscriptions[i].RemoveItems(opcServer.Subscriptions[i].Items);
+                //    //subscription.DataChanged -= ThisSubscription_DataChanged;
+                //    this.opcServer.CancelSubscription(opcServer.Subscriptions[i]);
+                //    opcServer.Subscriptions[i].Dispose();
+                //}
+                //opcServer.Subscriptions.Clear();
+                //this.opcServer.Disconnect();
+                //opcServer = null;
+                if (!Equals(this.opcServer.Subscriptions, null) && this.opcServer.Subscriptions.Count > 0)
                 {
-                    var subscription = (opcServer.Subscriptions[i] as Opc.Da.Subscription);
-                    subscription.DataChanged -= new Opc.Da.DataChangedEventHandler(ThisSubscription_DataChanged);
-                    subscription.RemoveItems(subscription.Items);
-                    this.opcServer.CancelSubscription(subscription);
-                    //opcServer.Subscriptions[i].Dispose();
+                    foreach (Opc.Da.Subscription thisSubscription in this.opcServer.Subscriptions)
+                    {
+                        thisSubscription.RemoveItems(thisSubscription.Items);
+                        thisSubscription.DataChanged -= ThisSubscription_DataChanged;
+                        this.opcServer.CancelSubscription(thisSubscription);
+                        thisSubscription.Dispose();
+                    }
+                    this.opcServer.Subscriptions.Clear();
+                    opcServer.Disconnect();
+                    IsConnected = false;
                 }
-                this.opcServer.Disconnect();
+
+
                 if (!Equals(null, OnLogHappened))
                 {
                     OnLogHappened(this, new OpcLogEventArgs("断开Opc服务器成功"));
                 }
-                opcResult = OpcResult.S_OK;
-                return opcResult;
+                //opcResult = OpcResult.S_OK;
+                //return opcResult;
             }
             catch (Exception ex)
             {
@@ -255,13 +311,23 @@ namespace OpcHelper
                 {
                     OnErrorHappened(this, new OpcErrorEventArgs(OpcResult.E_FAIL, "断开Opc服务器时出错，" + ex.Message, ex));
                 }
-                opcResult = OpcResult.E_FAIL;
-                return opcResult;
+                //opcResult = OpcResult.E_FAIL;
+                //return opcResult;
             }
             finally
             {
                 IsConnected = false;
             }
+        }
+
+        public async void DisConnectAsync()
+        {
+            daemonTimer.Enabled = false;
+            daemonTimer.Stop();
+            await Task.Run(() =>
+            {
+                disConnect();
+            });
         }
 
         /// <summary>
@@ -273,9 +339,10 @@ namespace OpcHelper
         /// 注册Opc数据项集合
         /// </summary>
         /// <param name="opcDataItems"></param>
-        private  void registerOpcDataItems(IList<OpcDataItem> opcDataItems)
+        private void registerOpcDataItems(IList<OpcDataItem> opcDataItems)
         {
             this.OpcDataItems = opcDataItems;
+            daemonTimer.Enabled = false;
             daemonTimer.Stop();
 
             //如果未连接那么返回
@@ -310,7 +377,6 @@ namespace OpcHelper
                     }
                     return;
                 }
-                //return true;
             }
 
             #endregion  有数据项需要更新或者删除
@@ -354,7 +420,7 @@ namespace OpcHelper
                     var opcItems = ConvertItems(dataItemGroup.DataItems);
                     //添加订阅项
                     var results = newSubscription.AddItems(opcItems.ToArray());
-                    newSubscription.DataChanged += new Opc.Da.DataChangedEventHandler(ThisSubscription_DataChanged);
+                    newSubscription.DataChanged += ThisSubscription_DataChanged;
                     //订阅的结果通过事件通知给外部调用程序
                     foreach (var v in results)
                     {
@@ -367,7 +433,7 @@ namespace OpcHelper
                             return;
                         }
                         //订阅成功更新状态
-                        if (v.ResultID == Opc.ResultID .S_OK )
+                        if (v.ResultID == Opc.ResultID.S_OK)
                         {
                             OpcResult opcResult = OpcResult.Unknow;
                             Enum.TryParse<OpcResult>(v.ResultID.ToString(), out opcResult);
@@ -496,7 +562,6 @@ namespace OpcHelper
                         }
                         name = null;
                     }
-
                     #endregion
                 }
 
@@ -504,7 +569,7 @@ namespace OpcHelper
             //删除订阅项后没有item了，那么删除subscription
             foreach (var subscription in this.opcServer.Subscriptions.Cast<Opc.Da.Subscription>())
             {
-              var isHave =  dataItemGroups.Any(a => a.UpdateRate == subscription.State.UpdateRate);
+                var isHave = dataItemGroups.Any(a => a.UpdateRate == subscription.State.UpdateRate);
 
                 if (!isHave)
                 {
@@ -524,15 +589,15 @@ namespace OpcHelper
             {
                 OnLogHappened(this, new OpcLogEventArgs("OPC Subscriptions Count:" + this.opcServer.Subscriptions.Count + "."));
             }
+            daemonTimer.Enabled = true;
             daemonTimer.Start();
         }
 
-        //public OpcResult  aa(object  opcDataItems)
-        //{
-        //    return OpcResult.DataItemAdded;
-        //}
-
-        public async void RegisterOpcDataItems(IList<OpcDataItem> opcDataItems)
+        /// <summary>
+        /// 异步注册OPC数据点
+        /// </summary>
+        /// <param name="opcDataItems"></param>
+        public async void RegisterOpcDataItemsAsync(IList<OpcDataItem> opcDataItems)
         {
             await Task.Run(() =>
             {
@@ -540,10 +605,8 @@ namespace OpcHelper
             });
         }
 
-
-
         /// <summary>
-        /// 重新注册数据点
+        /// 重新注册数据点，有不良点时才重新注册
         /// </summary>
         private void reRegisterOpcDataItems()
         {
@@ -564,6 +627,7 @@ namespace OpcHelper
                 }
             }
         }
+
         /// <summary>
         /// 数据改变事件函数
         /// </summary>
@@ -572,15 +636,15 @@ namespace OpcHelper
         /// <param name="values"></param>
         private void ThisSubscription_DataChanged(object subscriptionHandle, object requestHandle, Opc.Da.ItemValueResult[] values)
         {
-            if (!Equals(null, OnDataChanged))
+            if (!Equals(null, OnDataChanged) && IsConnected && !Equals(null, OpcDataItems))
             {
-                foreach (var v in values)
+                //异步方式
+                System.Threading.Tasks.Parallel.ForEach<ItemValueResult>(values, (v) =>
                 {
                     OpcDataItem item = OpcDataItems.FirstOrDefault(a => a.Name == v.ItemName);
                     if (Equals(null, item))
                     {
-                        //OnDataChanged(this, new OpcDataEventArgs(OpcResult.E_FAIL, item));
-                        continue;
+                        return;
                     }
                     OpcResult opcResult = OpcResult.Unknow;
                     Enum.TryParse<OpcResult>(v.ResultID.ToString(), out opcResult);
@@ -589,7 +653,24 @@ namespace OpcHelper
                     item.OldValue = item.NewValue;
                     item.NewValue = v.Value.ToString();
                     OnDataChanged(this, new OpcDataEventArgs(opcResult, item));
-                }
+                });
+                //同步方式
+                //foreach (var v in values)
+                //{
+                //    OpcDataItem item = OpcDataItems.FirstOrDefault(a => a.Name == v.ItemName);
+                //    if (Equals(null, item))
+                //    {
+                //        //OnDataChanged(this, new OpcDataEventArgs(OpcResult.E_FAIL, item));
+                //        continue;
+                //    }
+                //    OpcResult opcResult = OpcResult.Unknow;
+                //    Enum.TryParse<OpcResult>(v.ResultID.ToString(), out opcResult);
+                //    item.Name = v.ItemName;
+                //    item.Quality = opcResult;
+                //    item.OldValue = item.NewValue;
+                //    item.NewValue = v.Value.ToString();
+                //    OnDataChanged(this, new OpcDataEventArgs(opcResult, item));
+                //}
             }
         }
 
@@ -660,13 +741,11 @@ namespace OpcHelper
                       new ItemValue((ItemIdentifier)tmpSubscription.Items.FirstOrDefault(a => a.ItemName == opcDataItem.Name));
                 itemValue.Value = opcDataItem.NewValue;
                 var results = tmpSubscription.Write(new ItemValue[] { itemValue });
-
+                //写多次
                 for (int i = 0; i < 20; i++)
                 {
                     results = tmpSubscription.Write(new ItemValue[] { itemValue });
                 }
-                //results = tmpSubscription.Write(new ItemValue[] { itemValue });
-                //Thread.Sleep(opcDataItem.UpdateRate + 5);//暂停线程以让DataChange反映
                 if (results.Count() < 1 && !Equals(null, OnErrorHappened))
                 {
                     opcResult = OpcResult.E_UNKNOWN_ITEM_NAME;
@@ -744,7 +823,7 @@ namespace OpcHelper
                         OnErrorHappened(this, new OpcErrorEventArgs(opcResult, "读取数据项时发生错误:" + v.ResultID.Name, null));
                     }
                 }//end foreach
-                return opcDataItemResult.Clone () as OpcDataItem;
+                return opcDataItemResult.Clone() as OpcDataItem;
             }
             catch (Exception ex)
             {
@@ -754,38 +833,6 @@ namespace OpcHelper
                 }
                 return opcDataItemResult;
             }
-        }
-
-        private bool isHasEvent(OpcClientHelper opcClientHelper, string eventName)
-        {
-            Assembly a = Assembly.GetAssembly(opcClientHelper.GetType());
-            System.Type t = a.GetType(opcClientHelper.GetType().FullName, true);
-
-            System.Reflection.MethodInfo[] methods = t.GetMethods(BindingFlags.NonPublic | BindingFlags.Instance);
-            foreach (MethodInfo m in methods)
-            {
-                if (m.Name.Equals(eventName))
-                {
-                    return true;
-                }
-            }
-            return false;
-        }
-
-        private bool isHasEvent2(Opc.Da.Subscription subscription, string eventName)
-        {
-            Assembly a = Assembly.GetAssembly(subscription.GetType());
-            System.Type t = a.GetType(subscription.GetType().FullName, true);
-
-            System.Reflection.MethodInfo[] methods = t.GetMethods(BindingFlags.NonPublic | BindingFlags.Instance);
-            foreach (MethodInfo m in methods)
-            {
-                if (m.Name.Equals(eventName))
-                {
-                    return true;
-                }
-            }
-            return false;
         }
 
         /// <summary>
@@ -808,11 +855,14 @@ namespace OpcHelper
         public void Dispose()
         {
             this.OnDataChanged = null;
-            DisConnect();
+            DisConnectAsync();
             this.OnErrorHappened = null;
-            this.OnDataChanged = null;
+            this.OnLogHappened = null;
             this.OpcDataItems = null;
             this.opcServer = null;
+            this.OpcServerName = null;
+            this.Host = null;
         }
+
     }
 }

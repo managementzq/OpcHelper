@@ -71,7 +71,7 @@
             <Button x:Name="btnConnectOpcServer" Content="连接服务器" Margin="0 5 0 0" Width="75" Click="btnConnectOpcServer_Click"/>
             <Button x:Name="btnDisConnectOpcServer" Content="断开服务器" Margin="0 5 0 0" Width="75" Click="btnDisConnectOpcServer_Click"/>
             <Button x:Name="btnAddDataItems" Content="订阅数据" Margin="0 5 0 0" Width="75" Click="btnAddDataItems_Click" IsEnabled="False"/>
-            <Button x:Name="btnDispose" Content="Dispose" Margin="0 5 0 0" Width="75" Click="btnDispose_Click" IsEnabled="False"/>
+            <Button x:Name="btnDispose" Content="Dispose" Margin="0 5 0 0" Width="75" Click="btnDispose_Click" IsEnabled="True"/>
             <Button x:Name="btnReAddDataItems" Content="增加订阅数据" Margin="0 5 0 0" Width="75" Click="btnReAddDataItems_Click" IsEnabled="False"/>
             <Button x:Name="btnDeleteDataItems" Content="减少订阅数据" Margin="0 5 0 0" Width="75" Click="btnDeleteDataItems_Click" IsEnabled="False"/>
             <Button x:Name="btnNoDataItems" Content="取消所有订阅数据" Margin="0 5 0 0" Width="75" Click="btnbtnNoDataItems_Click" IsEnabled="False"/>
