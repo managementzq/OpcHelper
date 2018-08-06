@@ -26,6 +26,10 @@ namespace OpcHelperDemo
         public MainWindow()
         {
             InitializeComponent();
+            //sw = new StreamWriter(fs, Encoding.Default);
+
+            swLog = new StreamWriter(fsLog, Encoding.Default);
+            swLog.AutoFlush = true;
 
             System.Threading.Tasks.Task.Run(new Action(intiOpcClientHelper));
 
@@ -33,15 +37,31 @@ namespace OpcHelperDemo
             upMessageDelgate = new UpMessageDelgate(upMessage);
             upOpcDataItemsDelgate = new UpOpcDataItemsDelgate(upOpcDataItems);
             upOpcDataItemDelgate = new UpOpcDataItemDelgate(upOpcDataItem);
-            sw = new StreamWriter(fs, Encoding.Default);
 
         }
-        FileStream fs = new FileStream("log.log", FileMode.OpenOrCreate, FileAccess.Write, FileShare.Write);
-        StreamWriter sw;
+
+        FileStream fsLog = new FileStream($"{DateTime.Now.ToString("yyyyMMdd")}.log", FileMode.OpenOrCreate);
+        StreamWriter swLog;
+        /// <summary>
+        /// 写文件
+        /// </summary>
+        /// <param name="xContent">内容</param>
+        /// <param name="xFilePath">路径</param>
+        public void WriteFile(string xContent)
+        {
+            lock (lockObject)
+            {
+                swLog.WriteAsync(xContent);
+
+            }
+        }
+        object lockObject = new object();
+        //FileStream fs = new FileStream("log.log", FileMode.OpenOrCreate, FileAccess.Write, FileShare.Write);
+        //StreamWriter swData;
         private delegate void UpMessageDelgate(string a);
         private UpMessageDelgate upMessageDelgate;
 
-        private delegate void UpOpcDataItemsDelgate(IList <OpcDataItem> opcDataItems);
+        private delegate void UpOpcDataItemsDelgate(IList<OpcDataItem> opcDataItems);
         private UpOpcDataItemsDelgate upOpcDataItemsDelgate;
 
         private delegate void UpOpcDataItemDelgate(OpcDataItem opcDataItem);
@@ -76,10 +96,12 @@ namespace OpcHelperDemo
             sb.AppendLine();
             txtOpcDataItems.Text = sb.ToString();
 #else 
-            txtOpcDataItems.Text = System.IO.File.ReadAllText("数据点.txt");
+            txtOpcDataItems.Text = System.IO.File.ReadAllText("数据点.txt", Encoding.Default);
 #endif
             sb.Clear();
             sb = null;
+
+            WriteFile("数据点加载完成！");
         }
 
         private OpcHelper.OpcClientHelper opcClienthelper;
@@ -114,7 +136,8 @@ namespace OpcHelperDemo
 
         private void asyncUpMessage(string message)
         {
-            upMessageDelgate.BeginInvoke(message, new AsyncCallback((result) => {
+            upMessageDelgate.BeginInvoke(message, new AsyncCallback((result) =>
+            {
                 upMessageDelgate.EndInvoke(result);
 
             }), message);
@@ -129,26 +152,7 @@ namespace OpcHelperDemo
             //    }
             //}));
         }
-        /// <summary>
-        /// 写文件
-        /// </summary>
-        /// <param name="xContent">内容</param>
-        /// <param name="xFilePath">路径</param>
-        public  void WriteFile(string xContent)
-        {
-            lock (lockObject)
-            { 
-                FileStream fs = new FileStream("log.log", FileMode.OpenOrCreate);
-            StreamWriter sw = new StreamWriter(fs, Encoding.Default);
-            sw.Write(xContent);
-            sw.Close();
-                fs.Close();
 
-            }
-
-        }
-
-    object lockObject = new object();
         private void upMessage(string message)
         {
             //lock (lockObject)
@@ -182,15 +186,14 @@ namespace OpcHelperDemo
 
         private void asyncUpOpcDataItems(IEnumerable<OpcDataItem> opcDataItem)
         {
-
-            this.Dispatcher.BeginInvoke (upOpcDataItemsDelgate, opcDataItem);
+            this.Dispatcher.BeginInvoke(upOpcDataItemsDelgate, opcDataItem);
         }
 
         ObservableCollection<OpcDataItem> dataGridDataSource = new ObservableCollection<OpcDataItem>();
-        private void upOpcDataItems(IEnumerable <OpcDataItem > opcDataItem)
+        private void upOpcDataItems(IEnumerable<OpcDataItem> opcDataItem)
         {
             //this.txtb.Text = "(" + opcDataItem.Count(a => a.Quality == OpcResult.S_OK) + "/" + opcDataItem.Count() + ")";
-           
+
             //System.IO.File.AppendAllText("log.log", message);
 
             //gvOpcDataItems.ItemsSource = null;
@@ -205,7 +208,7 @@ namespace OpcHelperDemo
                 this.txtb.Text = "(" + opcDataItem.Count(a => a.Quality == OpcResult.S_OK) + "/" + opcDataItem.Count() + ")";
             }));
         }
-        OpcDataItem tm = new OpcDataItem("test",1000,"0","0",OpcResult.Unknow );
+        OpcDataItem tm = new OpcDataItem("test", 1000, "0", "0", OpcResult.Unknow);
         private void upOpcDataItem(OpcDataItem opcDataItem)
         {
             //this.txtb.Text = "(" + opcDataItem.Count(a => a.Quality == OpcResult.S_OK) + "/" + opcDataItem.Count() + ")";
@@ -222,14 +225,18 @@ namespace OpcHelperDemo
                 //var v =  dataGridDataSource.First(a => a.Name == opcDataItem.Name) ;
                 //  v = opcDataItem;
 
-                dataGridDataSource.Add(opcDataItem);
+                //dataGridDataSource.Add(opcDataItem);
 
-                dataGridDataSource.Remove(opcDataItem);
-
+                //dataGridDataSource.Remove(opcDataItem);
+                //var v = dataGridDataSource.FirstOrDefault(a => a.Name == opcDataItem.Name);
+                //v = opcDataItem;
                 //gvOpcDataItems.ItemsSource = null;
                 //gvOpcDataItems.ItemsSource = dataGridDataSource;
                 this.txtb.Text = "(" + dataGridDataSource.Count(a => a.Quality == OpcResult.S_OK) + "/" + dataGridDataSource.Count() + ")";
             }));
+
+
+
         }
 
         private void OpcClienthelper_OnErrorHappened(object sender, OpcHelper.OpcErrorEventArgs e)
@@ -250,11 +257,13 @@ namespace OpcHelperDemo
             string message = DateTime.Now.ToString(dateString) + e.OpcResult + " " + (e.OpcDataItem == null ? " " : e.OpcDataItem.ToString()) + System.Environment.NewLine;
             try
             {
-                asyncUpMessage(message);
+                WriteFile(message);
+
+                //asyncUpMessage(message);
 
                 //asyncUpOpcDataItems(this.opcClienthelper.OpcDataItems);
 
-                upOpcDataItemDelgate(e.OpcDataItem);
+                //upOpcDataItemDelgate(e.OpcDataItem);
             }
             catch (AggregateException ex)
             {
@@ -409,21 +418,34 @@ namespace OpcHelperDemo
         /// <param name="e"></param>;
         private void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
         {
-
-            if (opcClienthelper.IsConnected)
+            try
             {
-                if (MessageBox.Show("正在通讯中，确定要退出么？\r\r退出后所有通讯将关闭！", "OPC测试助手", MessageBoxButton.OKCancel, MessageBoxImage.Question)
-                      == MessageBoxResult.OK)
+                if (opcClienthelper.IsConnected)
                 {
-                    //e.Cancel = true;
-                    opcClienthelper.Dispose();
-                    sw.Close();
+                    if (MessageBox.Show("正在通讯中，确定要退出么？\r\r退出后所有通讯将关闭！", "OPC测试助手", MessageBoxButton.OKCancel, MessageBoxImage.Question)
+                          == MessageBoxResult.OK)
+                    {
+                        //e.Cancel = true;
+                        opcClienthelper.Dispose();
+                        //sw.Close();
+                        //fs.Close();
+                        //fs.Flush();
+                    }
+                    else
+                    {
+                        e.Cancel = true;
+                    }
+                }
 
-                }
-                else
-                {
-                    e.Cancel = true;
-                }
+
+                swLog.Flush();
+                swLog.Close();
+                fsLog.Close();
+
+            }
+            catch
+            {
+
             }
 
             //opcClienthelper.OnDataChanged -= OpcClienthelper_OnDataChanged;
@@ -574,6 +596,65 @@ namespace OpcHelperDemo
             dataGridDataSource = new ObservableCollection<OpcDataItem>(opcDataItems);
             gvOpcDataItems.ItemsSource = dataGridDataSource;
             this.txtb.Text = "(" + dataGridDataSource.Count(a => a.Quality == OpcResult.S_OK) + "/" + dataGridDataSource.Count() + ")";
+
+        }
+
+        private void btnCreateData_Click(object sender, RoutedEventArgs e)
+        {
+
+            if (System.IO.File.Exists("数据点.txt"))
+            {
+                System.IO.File.Copy("数据点.txt", $"数据点{DateTime.Now.ToString("yyyyMMddHHmmss")}.txt");
+            }
+
+            int lineCount = 2000;
+            int.TryParse(txtCreateDataCount.Text, out lineCount);
+            List<string> lines = new List<string>(lineCount);
+            for (int i = 1; i < lineCount; i++)
+            {
+                lines.Add($"通道 1.设备 1.标记 {i.ToString().PadLeft(5, '0')};100; False; True; Unknow");
+            }
+
+
+            System.IO.File.WriteAllLines("数据点.txt", lines, Encoding.Default);
+
+
+
+            //sb.Append("Channel_1.Device_1.Bool_1;1000;False;True;Unknow");
+            //sb.AppendLine();
+            //sb.Append("Channel_1.Device_1.Tag_1;1000;0;0;Unknow");
+            //sb.AppendLine();
+            //sb.Append("Channel_1.Device_1.Tag_2;1000;0;0;Unknow");
+            //sb.AppendLine();
+            //sb.Append("Channel_1.Device_1.Tag_3;1000;0;0;Unknow");
+            //sb.AppendLine();
+            //sb.Append("Channel_1.Device_1.Tag_4;1000;0;0;Unknow");
+            //sb.AppendLine();
+            //sb.Append("Channel_1.Device_1.Tag_5;1000;0;0;Unknow");
+            //sb.AppendLine();
+            //sb.Append("Channel1.Device1.Tag1;1000;0;0;Unknow");
+            //sb.AppendLine();
+            //sb.Append("Channel1.Device1.Tag2;1000;0;0;Unknow");
+            //sb.AppendLine();
+            //sb.Append("S7:[S7 connection_52]DB800,X0.1;1000;0;0;Unknow");
+            //sb.AppendLine();
+            //sb.Append("S7 [S7_connection_52]DB800,X0.2;1000;0;0;Unknow");
+            //sb.AppendLine();
+
+
+
+            //txtOpcDataItems.Text = System.IO.File.ReadAllText("数据点.txt");
+
+
+
+
+
+
+
+
+
+
+
 
         }
     }
